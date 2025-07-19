@@ -1,0 +1,223 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuthContext } from '../../src/hooks/AuthProvider';
+import { apiGet, apiPost } from '../../src/services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { setUser } = useAuthContext();
+  const router = useRouter();
+
+   
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+     
+      const response = await apiPost('/login', {
+        email,
+        password
+      });
+
+      console.log('Login response:', response);
+
+      if (response.data.user) {
+        // Set user data from the API response with the correct structure
+        const userData = {
+          id: response.data.user.id,
+          user_metadata: {
+            email: email,
+            username: response.data.user.username,
+            completedads: response.data.user.completedads || 0,
+            discordid: response.data.user.discordid || 'unverified',
+            invitecode: response.data.user.invitecode || '',
+            inviter_rewarded: response.data.user.inviter_rewarded || false,
+            phoneverified: response.data.user.phoneverified || 'unverified',
+            successfullinvites: response.data.user.successfullinvites || 0,
+            wingy: response.data.user.wingy || 0
+          }
+        };
+        
+        console.log('Setting user data:', userData);
+        
+        // Set user in context and wait for it to complete
+        await setUser(userData);
+        
+        // Wait for state to update and storage to be set
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Navigate to home
+        router.replace('/(tabs)/home');
+      } else {
+        console.error('Invalid response:', response);
+        setError('Invalid response from server');
+      }
+    } catch (err: any) {
+  console.error('Login error:', err);
+  if (
+    err.message &&
+    (err.message.toLowerCase().includes('invalid login credentials') ||
+     err.message.toLowerCase().includes('invalid email or password'))
+  ) {
+    setError('Incorrect email or password'); // 👈 Custom message
+  } else {
+    setError(err.message || 'Failed to log in');
+  }
+}finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <LinearGradient
+        colors={['black', '#53538F']}
+        style={styles.gradient}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.title}>Welcome Back</Text>
+          
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="email" size={24} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#666"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="lock" size={24} color="#666" style={styles.inputIcon} />
+            <TextInput 
+              style={styles.input}
+              placeholder="Password" 
+              placeholderTextColor="#666"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          {error && <Text style={styles.error}>{error}</Text>}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.signupLink}
+            onPress={() => router.push('/signup')}
+          >
+            <Text style={styles.signupLinkText}>
+              Don't have an account? <Text style={styles.signupLinkTextBold}>Sign up</Text>
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.signupLink}
+            onPress={() => router.push('/forgot-password')}
+          >
+            <Text style={styles.signupLinkText}>
+              Forgot Your Password ? <Text style={styles.signupLinkTextBold}>Reset Password</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: 50,
+    color: '#333',
+  },
+  button: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: '#6a5af9',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  error: {
+    color: '#ff6b6b',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  signupLink: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  signupLinkText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  signupLinkTextBold: {
+    fontWeight: 'bold',
+  },
+}); 

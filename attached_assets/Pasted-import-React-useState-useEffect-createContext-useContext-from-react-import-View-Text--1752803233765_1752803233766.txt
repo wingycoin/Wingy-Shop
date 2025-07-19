@@ -1,0 +1,1458 @@
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, TextInput, Linking, useColorScheme, Platform, Animated, Alert, Image,BackHandler } from 'react-native';
+import { Button } from 'react-native-paper';
+import { useAuthContext } from '../../src/hooks/AuthProvider';
+import { apiGet, apiPost } from '../../src/services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
+import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
+import { useCallback } from 'react';
+import { useFonts } from 'expo-font';
+import { Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import Svg, { Circle } from 'react-native-svg';
+import { red100 } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
+export const WingyReloadContext = React.createContext<{ reloadWingy: () => void }>({ reloadWingy: () => {} });
+
+const BanneradUnitId = __DEV__ ? 'ca-app-pub-3940256099942544/6300978111' : 'ca-app-pub-4495951516027050/5738192588';
+const InterstitialadUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-4495951516027050/3052319492';
+
+
+
+
+const interstitial = InterstitialAd.createForAdRequest(InterstitialadUnitId);
+
+type ColorScheme = {
+  background: string;
+  card: string;
+  text: string;
+  inputBg: string;
+  inputText: string;
+  border: string;
+  button: string;
+  buttonText: string;
+  placeholder: string;
+  accent: string;
+  success: string;
+  error: string;
+  secondary: string;
+  divider: string;
+  modalBg: string;
+  aboutTitle: string;
+  aboutText: string;
+};
+
+const lightColors: ColorScheme = {
+  background: '#ffffff',
+  card: '#ffffff',
+  text: '#1a1a1a',
+  inputBg: '#f5f5f5',
+  inputText: '#1a1a1a',
+  border: '#e0e0e0',
+  button: '#2563eb',
+  buttonText: '#ffffff',
+  placeholder: '#9ca3af',
+  accent: '#2563eb',
+  success: '#059669',
+  error: '#dc2626',
+  secondary: '#6b7280',
+  divider: '#e5e7eb',
+  modalBg: '#ffffff',
+  aboutTitle: '#2563eb',
+  aboutText: '#6b7280',
+};
+
+const darkColors: ColorScheme = {
+  background: '#111827',
+  card: '#1f2937',
+  text: '#ffffff',
+  inputBg: '#374151',
+  inputText: '#ffffff',
+  border: '#374151',
+  button: '#3b82f6',
+  buttonText: '#ffffff',
+  placeholder: '#9ca3af',
+  accent: '#3b82f6',
+  success: '#10b981',
+  error: '#ef4444',
+  secondary: '#9ca3af',
+  divider: '#374151',
+  modalBg: '#111827',
+  aboutTitle: '#3b82f6',
+  aboutText: '#9ca3af',
+};
+
+export default function HomeScreen() {
+  const AppCurrentVersion = 49;
+  const { user, setUser } = useAuthContext();
+  const router = useRouter();
+  const [wingy, setWingy] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loadedInterstitial, setLoadedInterstitial] = useState(false);
+
+
+
+
+  const [transactions, setTransactions] = useState([]);
+  const [showAll, setShowAll] = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const colorScheme = useColorScheme();
+  const colors = colorScheme === 'dark' ? darkColors : lightColors;
+
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.95));
+  const [cooldown, setCooldown] = useState(0);
+//////////////////////// Update Check ///////////////////////////////
+const [forceUpdateVisible, setForceUpdateVisible] = useState(false);
+
+  useEffect(() => {
+    async function checkVersion() {
+      try {
+        const versionCheckResponse = await apiGet('/min-version'); // your api call
+        console.log('versionCheckResponse:', versionCheckResponse);
+        const minVersion = Number(versionCheckResponse.min);
+
+        if (minVersion > AppCurrentVersion) {
+          setForceUpdateVisible(true);
+        }
+      } catch (e) {
+        console.warn('Version check failed:', e);
+      }
+    }
+
+    checkVersion();
+  }, []);
+
+  useEffect(() => {
+    if (forceUpdateVisible) {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
+    }
+  }, [forceUpdateVisible]);
+
+  const handleUpdatePress = async() => {
+     try {
+      const res = await apiGet('/update-url');
+      if (res.url) {
+        Linking.openURL(res.url);
+      }
+    } catch (err) {
+      alert('Unable to open update link.');
+    }
+  }
+//////////////////////// Update Check ///////////////////////////////
+////////////////////////time to roblox group 15 days end////////////////////////////
+
+const [timeLeft, setTimeLeft] = useState<{
+  text: string;
+  progress: number;
+  remainingSeconds: number;
+}>({ text: '', progress: 0, remainingSeconds: 0 });
+
+const [endDate, setEndDate] = useState<string | null>(null);
+
+
+  // Calculate time left from the given end date
+  const calculateTimeLeft = (targetEndDate: string) => {
+    const now = new Date();
+    const end = new Date(targetEndDate);
+    const diff = end.getTime() - now.getTime();
+  
+    const totalSeconds = 15 * 24 * 60 * 60;
+    const remainingSeconds = Math.max(0, Math.floor(diff / 1000));
+  
+    const days = Math.floor(remainingSeconds / (24 * 60 * 60));
+    const hours = Math.floor((remainingSeconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((remainingSeconds % (60 * 60)) / 60);
+    const seconds = remainingSeconds % 60;
+  
+    setTimeLeft({
+      text: `${days.toString().padStart(2, '0')}:${hours
+        .toString()
+        .padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds
+        .toString()
+        .padStart(2, '0')}`,
+      progress: remainingSeconds / totalSeconds,
+      remainingSeconds,
+    });
+  };
+  
+
+  // Fetch the group data from backend on load
+  const fetchData = async () => {
+  try {
+    const response = await apiGet(`/check-group/${user?.id}`);
+    if (response?.data?.createdAt) {
+      const rawDate = new Date(response.data.createdAt);
+      rawDate.setDate(rawDate.getDate() + 15);
+      const isoEnd = rawDate.toISOString();
+
+      setEndDate(isoEnd); // ✅ still set state
+      setGroupModalVisible(false); // ✅ hide modal because data exists
+      return;
+    }
+  } catch (err) {
+    console.error('Error fetching group data:', err);
+  }
+
+  // ✅ If no data or error, open the modal
+  setGroupModalVisible(true);
+};
+
+  
+  useEffect(() => {
+    fetchData();
+  }, [user?.id]);
+
+  // Update countdown every second
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (endDate) {
+      calculateTimeLeft(endDate);
+      timer = setInterval(() => {
+        calculateTimeLeft(endDate);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [endDate]);
+
+  const getBarColor = (progress: number) => {
+    if (progress > 0.5) return '#059669'; // Green
+    if (progress > 0.2) return '#F59E0B'; // Yellow
+    return '#DC2626'; // Red
+  };
+
+////////////////////////time to roblox group 14 days end////////////////////////////
+
+
+  const [fontsLoaded] = useFonts({
+    'Poppins-SemiBold': Poppins_600SemiBold,
+    'Poppins-Regular': Poppins_400Regular,
+    'Poppins-Bold': Poppins_700Bold,
+  });
+  const CircularCountdown = ({ percentage }) => {
+    const radius = 18;
+    const strokeWidth = 4;
+    const center = radius + strokeWidth;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (circumference * percentage) / 100;
+  
+    return (
+      <Svg height={center * 2} width={center * 2}>
+        <Circle
+          stroke="#ccc"
+          fill="none"
+          cx={center}
+          cy={center}
+          r={radius}
+          strokeWidth={strokeWidth}
+        />
+        <Circle
+          stroke="#32CD32"
+          fill="none"
+          cx={center}
+          cy={center}
+          r={radius}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          rotation="-90"
+          origin={`${center}, ${center}`}
+        />
+      </Svg>
+    );
+  };
+
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown(prev => {
+          if (prev === 1) clearInterval(timer);
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  
+  useEffect(() => {
+    if (user?.id) {
+      fetchWingy();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+  const showError = (message: string) => {
+    setError(message);
+    setTimeout(() => setError(null), 30000);
+  };
+  const showSuccess = (message: string, duration = 7500) => {
+    setSuccess(message);
+    setTimeout(() => setSuccess(null), duration);
+  };
+
+  useEffect(() => {
+    const unsubscribe = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setLoadedInterstitial(true);
+      setTimeout(() => {
+        interstitial.show();
+      }, 30000);
+    });
+    interstitial.load();
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+
+
+
+  // Add verification effect
+  useEffect(() => {
+    const verifyUser = async () => {
+      if (!user?.id) {
+        // No user ID found, clear data and redirect
+        await AsyncStorage.removeItem('user');
+        setUser(null);
+        router.replace('/login');
+        return;
+      }
+
+      try {
+        // Verify user exists in backend
+        const userData = await apiGet(`/user/${user.id}`);
+        if (!userData.user) {
+          // User not found in backend, clear data and redirect
+          await AsyncStorage.removeItem('user');
+          setUser(null);
+          router.replace('/login');
+          return;
+        }
+
+        // Update user metadata with latest data
+        setUser({
+          id: user.id,
+          user_metadata: {
+            ...user.user_metadata,
+            ...userData.user
+          }
+        });
+      } catch (err) {
+        console.error('Error verifying user:', err);
+        // Error verifying user, clear data and redirect
+        await AsyncStorage.removeItem('user');
+        setUser(null);
+        router.replace('/login');
+      }
+    };
+
+    verifyUser();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.user_metadata?.username) {
+      console.log('Full username in metadata:', user.user_metadata.username);
+    }
+  }, [user?.user_metadata?.username]);
+
+  // Move all the fetch-related code to the bottom
+  const fetchWingy = React.useCallback(async () => {
+    try {
+      if (!user?.id) return;
+      
+      // Fetch wingy balance using userId with POST request
+      const data = await apiPost('/check-balance', {
+        userId: user.id
+      });
+      
+      if (data.data.wingy !== wingy) { // Only update if the value has changed
+        setWingy(data.data.wingy);
+      }
+    } catch (err) {
+      setError('Failed to load user data');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, wingy]); // Update dependencies to use userId instead of username
+
+  const fetchTransactions = React.useCallback(async () => {
+    try {
+      if (!user?.id) return;
+      
+      const res = await apiGet(`/transaction-history/${user.id}`);
+      if (res.error === "No transactions found for this user.") {
+        // Silently handle no transactions case
+        setTransactions([]);
+        return;
+      }
+      if (res.error) {
+        throw new Error(res.error);
+      }
+      setTransactions(res.transactions || []);
+    } catch (err: any) {
+      // Silently handle 404s and "no transactions" cases
+      if (err.message && err.message.includes('404')) {
+        setTransactions([]);
+        return;
+      }
+      // Only log unexpected errors
+      console.error('Error fetching transactions:', err);
+      setTransactions([]);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+
+      const fetchData = async () => {
+        if (!user?.user_metadata?.username || !isActive) return;
+        
+        try {
+          await fetchWingy();
+          if (isActive) { // Check if still active before second fetch
+            await fetchTransactions();
+          }
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        }
+      };
+
+      fetchData();
+
+      return () => {
+        isActive = false;
+      };
+    }, [user?.user_metadata?.username, fetchWingy, fetchTransactions])
+  );
+
+
+
+  // Helper to format date
+  const formatDate = (iso: string) => new Date(iso).toLocaleString();
+
+  // Helper to determine if user is sender or receiver
+  const isSender = (tx: any) => tx.sender_username === user?.user_metadata?.username;
+
+  // Render a transaction row/card
+  const renderTx = (tx: any, idx: number) => {
+    const sender = isSender(tx);
+    return (
+      <TouchableOpacity
+        key={tx.id || idx}
+        style={[styles.txCard, { backgroundColor: colors.card }]}
+        onPress={() => setExpanded(expanded === idx ? null : idx)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.txHeader}>
+          <Text style={[styles.txAmount, { color: sender ? colors.error : colors.success }]}>
+            {sender ? '-' : '+'}{sender ? tx.amount_sent : tx.amount_received} Wingy
+          </Text>
+  
+          <Text style={[styles.txDate, { color: colors.secondary }]}>
+            {new Date(tx.timestamp).toLocaleDateString()}
+          </Text>
+        </View>
+  
+        <Text style={[styles.txUsername, { color: colors.secondary }]}>
+          {sender ? `To: @${tx.receiver_username}` : `From: @${tx.sender_username}`}
+        </Text>
+  
+        {expanded === idx && (
+          <View style={styles.txDetails}>
+            <Text style={[styles.txAmount, { color: sender ? colors.error : colors.success }]}>
+              {sender ? '-' : '+'}{sender ? tx.amount_received : tx.amount_sent} Wingy
+            </Text>
+            <Text style={[styles.txDate, { color: colors.secondary }]}>
+              {formatDate(tx.timestamp)}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  // Only show latest 5-7 transactions
+  const latestTxs = [...transactions]
+  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  .slice(0, 7);
+
+  const transactionsSorted = [...transactions]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  // Add Discord button handler
+  const handleDiscordInvite = async () => {
+    try {
+      const res = await apiGet('/discord-invite');
+      if (res.invite) {
+        Linking.openURL(res.invite);
+      }
+    } catch (err) {
+      // Optionally show an error or toast
+    }
+  };
+
+  const handleGroupInvite = async () => {
+    try {
+      const res = await apiGet('/group-invite');
+      if (res.groupinvite) {
+        Linking.openURL(res.groupinvite);
+      }
+    } catch (err) {
+      // Optionally show an error or toast
+    }
+  };
+
+
+  const handleSignOut = () => {
+    // This will clear AsyncStorage and redirect to login
+    setUser(null);
+  };
+
+
+
+  ///////////////////////join group////////////////////////////
+  const robloxLogo = require('../../assets/roblox-logo.png');
+  const [groupModalVisible, setGroupModalVisible] = useState(false);
+  const [robloxName, setRobloxName] = useState('');
+
+  const handleJoinGroup = async () => {
+    if (!robloxName.trim()) {
+      Alert.alert('Please enter your Roblox name');
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      const res = await apiPost('/join-group', {
+        userId: user?.id,
+        RobloxName: robloxName.trim(),
+      });
+  
+      const { status, data } = res;
+      const responseData = data || {};
+  
+      switch (status) {
+        case 200:
+          Alert.alert('Success', responseData.message || 'Successfully joined the group!');
+          setGroupModalVisible(false);
+          fetchData();
+          break;
+  
+        case 201:
+          Alert.alert('Info', responseData.message || 'You have already joined the group.');
+          setGroupModalVisible(false);
+          fetchData();
+          break;
+  
+        case 400:
+          Alert.alert('Error', responseData.error || 'Missing required fields.');
+          break;
+  
+        case 403:
+          Alert.alert('Forbidden', responseData.error || 'You are not in the group.');
+          break;
+  
+        case 404:
+          Alert.alert('Not Found', responseData.error || 'Roblox name not found.');
+          break;
+  
+        default:
+          Alert.alert('Error', responseData.error || 'Failed to join group.');
+      }
+    } catch (err: any) {
+      console.error('Error joining group:', err);
+  
+      let userFriendlyMessage = 'An error occurred while joining the group.';
+  
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error) {
+          userFriendlyMessage = parsed.error;
+        } else if (parsed.message) {
+          userFriendlyMessage = parsed.message;
+        }
+      } catch {
+        if (err.message) {
+          userFriendlyMessage = err.message;
+        }
+      }
+  
+      Alert.alert('Error', userFriendlyMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  
+  
+
+
+
+  
+  ///////////////////////join group end////////////////////////////
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+
+  return (
+    <WingyReloadContext.Provider value={{ reloadWingy: fetchWingy }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      
+
+      {endDate === null ? (
+  <TouchableOpacity
+  onPress={() => setGroupModalVisible(true)}
+  style={[
+    styles.timerContainer, // same outer style as timer
+    { backgroundColor: "red", justifyContent: 'center', alignItems: 'center' },
+  ]}
+>
+  <Text style={[styles.timerText, { color: "white" }]}>Click To Join Group</Text>
+</TouchableOpacity>
+) : timeLeft.remainingSeconds > 0 ? (
+  <View style={[styles.timerContainer, { backgroundColor: colors.card }]}>
+    <View
+      style={[
+        styles.timerBar,
+        {
+          width: `${timeLeft.progress * 100}%`,
+          backgroundColor: getBarColor(timeLeft.progress),
+        },
+      ]}
+    />
+    <Text style={[styles.timerText, { color: colors.text }]}>
+      {timeLeft.text} {/* Format: DD:HH:MM:SS */}
+    </Text>
+  </View>
+) : null}
+
+        <Animated.View
+          style={[
+            styles.headerContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={["#2563eb", "#1d4ed8"]}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                style={[styles.profileButton, { backgroundColor: 'rgba(255,255,255,0.15)' }]} 
+                onPress={() => router.push('/profile')}
+              >
+                <MaterialIcons name="person" size={24} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.discordButton, { backgroundColor: 'rgba(255,255,255,0.15)' }]}
+                onPress={handleDiscordInvite}
+              >
+                <FontAwesome5 name="discord" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.balanceContainer}>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+              <Text style={styles.balanceValue}>W{wingy?.toFixed(2) ?? '0.00'}</Text>
+              <Text style={[styles.username, { fontFamily: 'Poppins-Regular', fontSize: 16, letterSpacing: 0.5,  flexWrap: 'wrap',width: '100%' }]}>
+                @{user?.user_metadata?.username || 'user'}
+              </Text>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={[
+              styles.quickActions,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })}],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/transfer')}
+            >
+              <MaterialIcons name="send" size={24} color={colors.accent} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Send</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/invites')}
+            >
+              <MaterialIcons name="group-add" size={24} color={colors.accent} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Invite</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/leaderboard')}
+            >
+              <MaterialIcons name="leaderboard" size={24} color={colors.accent} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Top</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.quickActions,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })}],
+              },
+            ]}
+          >
+            
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/tasks')}
+            >
+              <MaterialIcons name="add" size={24} color={colors.accent} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Get Wingy</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          
+          <Animated.View
+            style={[
+              styles.transferProgress,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })}],
+              },
+            ]}
+          >
+            <View style={[styles.progressContainer, { backgroundColor: colors.card }]}>
+              <View style={styles.progressHeader}>
+                <MaterialIcons name="account-balance-wallet" size={24} color={colors.accent} />
+                <Text style={[styles.progressTitle, { color: colors.text }]}>Next Gift</Text>
+              </View>
+              <View style={styles.progressContent}>
+                <Text style={[styles.progressText, { color: colors.text }]}>W{wingy?.toFixed(2) ?? '0.00'} / 10.00</Text>
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: `${(wingy || 0) / 10 * 100}%`,
+                        backgroundColor: colors.accent,
+                      },
+                    ]}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.transferButton, { backgroundColor: wingy >=0 ? '#2563eb' : '#ccc' }]}
+                  onPress={() => router.push('/gift')}
+                  disabled={wingy < 0}
+                >
+                  <Text style={[styles.transferButtonText, {  color: wingy < 0 ? 'gray' : 'white' }]}>Gift</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/*<Animated.View
+            style={[
+              styles.rewardSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })}],
+              },
+            ]}
+          >
+            <View style={[styles.rewardCard, { backgroundColor: colors.card }]}>
+              <View style={styles.rewardHeader}>
+                <MaterialIcons name="stars" size={24} color={colors.accent} />
+                <Text style={[styles.rewardTitle, { color: colors.text }]}>Get Wingy</Text>
+              </View>
+              <Text style={[styles.rewardAmount, { color: colors.accent , textAlign: 'center'}]}>Complete levels Daily</Text>
+              <View style={styles.rewardButtonContainer}>
+               <TouchableOpacity
+    style={[
+      styles.rewardButton,
+      {
+        backgroundColor: colors.button ,
+        opacity: 1,
+        flex: 1,
+        marginRight: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 10
+      }
+    ]}
+    onPress={() => router.push('/levels')}
+    
+  >
+    <Text style={[styles.rewardButtonText, { color: colors.buttonText ,  flexWrap: 'wrap',width: '100%', textAlign: 'center' }]}>
+      Get Wingy
+    </Text>
+  </TouchableOpacity>
+
+  {/*{/* Replace the refresh button with the cooldown circle 
+  {cooldown > 0 ? (
+    <View style={{ marginLeft: 8 }}>
+      <View style={styles.circleContainer}>
+        <CircularCountdown percentage={(1 - cooldown / 30) * 100} />
+        <Text style={[{color: colors.text}, styles.countdownText]}>{cooldown}</Text>
+      </View>
+    </View>
+  ) : (
+    <TouchableOpacity
+      style={[
+        styles.refreshButton,
+        {
+          backgroundColor: refreshCooldown ? colors.secondary : colors.accent,
+          opacity: refreshCooldown ? 0.7 : 1
+        }
+      ]}
+      onPress={handleRefreshAd}
+      disabled={refreshCooldown || loadedrewarded}
+    >
+      <MaterialIcons 
+        name="refresh" 
+        size={20} 
+        color={colors.buttonText} 
+      />
+    </TouchableOpacity>
+  )}
+
+
+              </View>
+              {error && (
+    <Text style={{ color: 'red', textAlign: 'center' }}>{error}</Text>
+)}
+{success && (
+  <Text style={{ color: 'green', marginTop: 10, textAlign: 'center' }}>
+    {success}
+  </Text>
+)}
+
+            </View>
+          </Animated.View>*/}
+
+          <Animated.View
+            style={[
+              styles.transactionsSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })}],
+              },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Transactions</Text>
+              {transactions.length > 7 && (
+                <TouchableOpacity 
+                  onPress={() => setShowAll(true)} 
+                  style={styles.viewAllButton}
+                >
+                  <Text style={[styles.viewAllText, { color: colors.accent }]}>
+                    View all
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {transactions.length === 0 ? (
+              <View style={[styles.emptyContainer, { backgroundColor: colors.card }]}>
+                <MaterialIcons name="history" size={48} color={colors.secondary} />
+                <Text style={[styles.emptyText, { color: colors.secondary }]}>
+                  No transactions yet
+                </Text>
+              </View>
+            ) : (
+              latestTxs.map(renderTx)
+            )}
+          </Animated.View>
+        </ScrollView>
+
+        <View style={styles.bannerContainer}>
+          <BannerAd
+            unitId={BanneradUnitId}
+            size={BannerAdSize.BANNER}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
+          />
+        </View>
+        
+
+        
+
+
+
+        {/* Fullscreen modal for all transactions */}
+        <Modal visible={showAll} animationType="slide">
+          <View style={{ flex: 1, backgroundColor: colors.modalBg, padding: 20 }}>
+            <TouchableOpacity onPress={() => setShowAll(false)} style={{ alignSelf: 'flex-end', marginBottom: 10, marginTop: 24 }}>
+              <MaterialIcons name="close" size={32} color={colors.accent} />
+            </TouchableOpacity>
+            <ScrollView>
+              {transactionsSorted.map(renderTx)}
+            </ScrollView>
+          </View>
+        </Modal>
+
+
+        {/* Modal for join group */}
+        <Modal
+        visible={groupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGroupModalVisible(false)}
+      >
+        <View style={modalStyles.modalBackdrop}>
+          <View style={[modalStyles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.buttonRow}>
+          <TouchableOpacity style={[styles.iconButton, { flexDirection :'row', alignItems: 'center', justifyContent: 'center'}]}  onPress={handleGroupInvite}>
+            <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Poppins-Regular' }}>Click to join Group</Text>
+      <Image source={robloxLogo} style={styles.iconImage} />
+    </TouchableOpacity>
+    </View>
+            <Text style={[modalStyles.modalTitle, { color: colors.text }]}>
+              Enter your Roblox Name
+            </Text>
+            <TextInput
+              style={[modalStyles.input, { color: colors.text, borderColor: colors.text }]}
+              placeholder="Roblox Name"
+              placeholderTextColor={colors.text + '88'}
+              value={robloxName}
+              onChangeText={setRobloxName}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={modalStyles.buttonRow}>
+              <TouchableOpacity
+                onPress={() => setGroupModalVisible(false)}
+                style={[modalStyles.button, { backgroundColor: '#ccc' }]}
+                disabled={loading}
+              >
+                <Text>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleJoinGroup}
+                style={[modalStyles.button, { backgroundColor: '#059669' }]}
+                disabled={loading}
+              >
+                <Text style={{ color: 'white' }}>
+                  {loading ? 'Cheking...' : 'Check'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+
+{/*Force Update Modal*/}
+<Modal
+      visible={forceUpdateVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        // Do nothing - disables back button dismissal on Android
+      }}
+    >
+      <View style={modalStyles.modalBackdrop}>
+        <View style={[modalStyles.modalContent, { backgroundColor: colors.card, padding: 30, borderRadius: 12 }]}>
+          <Text style={[modalStyles.modalTitle, { color: colors.text, marginBottom: 15 }]}>
+            Update Required
+          </Text>
+
+          <Text style={{ color: colors.text, fontSize: 16, marginBottom: 30, textAlign: 'center' }}>
+            Please update the app to the latest version to continue using it.
+          </Text>
+
+          <TouchableOpacity
+            onPress={handleUpdatePress}
+            style={[ { backgroundColor: '#059669', paddingVertical: 12, paddingHorizontal: 40, alignSelf: 'center', borderRadius: 8 } ]}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16, }}>Update Now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+
+      </View>
+    </WingyReloadContext.Provider>
+  );
+}
+
+const styles = StyleSheet.create({
+  transferProgress: {
+    marginVertical: 5,
+    padding: 16,
+  },
+  progressContainer: {
+    borderRadius: 12,
+    padding: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  progressTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  progressContent: {
+    alignItems: 'center',
+  },
+  progressText: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#c8c8c8',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  transferButton: {
+    width: '100%',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  transferButtonText: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+  },
+  container: {
+    flex: 1,
+  },
+  headerContainer: {
+    height: 320,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+  },
+  headerGradient: {
+    flex: 1,
+    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    justifyContent: 'center',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'ios' ? 10 : 5,
+    paddingHorizontal: 4,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  discordButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  balanceContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    marginTop: -40,
+  },
+  balanceLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 18,
+    fontFamily: 'Poppins-Regular',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  balanceValue: {
+    color: '#fff',
+    fontSize: 52,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  username: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    fontFamily: 'Poppins-Regular',
+    textAlign: 'center',
+    marginTop: 4,
+    letterSpacing: 0.5,
+    paddingHorizontal: 8,
+    flexWrap: 'wrap',
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 8,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  actionButtonText: {
+    marginTop: 8,
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
+    textAlign: 'center',
+    width: '100%',
+  },
+  transactionsSection: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 32,
+    borderRadius: 16,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontFamily: 'Poppins-Regular',
+  },
+  viewAllButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  txCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  txHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  txAmount: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  txDate: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#666',
+  },
+  txDetails: {
+    marginTop: 8,
+  },
+  txUsername: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#666',
+  },
+  error: {
+    color: 'red',
+    marginTop: 16,
+    textAlign: 'center',
+    fontFamily: 'Poppins-Regular',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    width: '80%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalCode: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'blue',
+    marginBottom: 20,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 2,
+  },
+  success: {
+    color: '#059669',
+    marginTop: 16,
+    textAlign: 'center',
+    fontFamily: 'Poppins-Regular',
+  },
+  rewardSection: {
+    marginBottom: 24,
+  },
+  rewardCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    alignSelf: 'stretch',
+  },
+  rewardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rewardTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+    marginLeft: 8,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  rewardAmount: {
+    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 16,
+  },
+  rewardButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rewardButton: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  rewardButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  refreshButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  bannerContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  circleContainer: {
+    position: 'relative',
+    width: 40,  // Adjust size as needed
+    height: 40,  // Adjust size as needed
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  countdownText: {
+    position: 'absolute',
+     // You can change the color as needed
+    fontSize: 14,  // Adjust font size as needed
+    fontWeight: 'bold',
+  },
+  timerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  timerBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: 5,
+  },
+  timerText: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Regular',
+    marginTop: 10,
+  },
+  buttonRow: {
+    alignItems: 'center', 
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconButton: {
+    backgroundColor: 'blue',
+    //padding: 12,
+    paddingVertical: 5,
+    paddingHorizontal:20,
+    //marginHorizontal: 4,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconImage: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
+  },
+});
+const modalStyles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: '#00000099',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 12,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 20,
+    fontSize: 16,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    marginHorizontal: 5,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  
+});

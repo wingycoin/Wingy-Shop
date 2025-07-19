@@ -1,0 +1,212 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuthContext } from '../../src/hooks/AuthProvider';
+import { apiPost } from '../../src/services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+
+export default function SignupScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const handleUsernameChange = (text: string) => {           // ✨ EDITED
+    const sanitized = text.replace(/[^a-zA-Z0-9]/g, '');      // ✨ EDITED
+    setUsername(sanitized);                                  // ✨ EDITED
+  };                                                          // ✨ EDITED
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { setUser } = useAuthContext();
+  const router = useRouter();
+
+  const handleSignup = async () => {
+    if (!email.trim() || !password.trim() || !username.trim()) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
+
+    if (username.toLowerCase().includes('gmail') || username.toLowerCase().includes('com')) {
+      setError('Username cannot contain "gmail" or "com"');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiPost('/signup', {
+        email,
+        password,
+        username: username.toLowerCase()
+      });
+
+      if (response.data.userId) {
+        // Set user data and redirect to home
+        setUser({
+          id: response.data.userId,
+          user_metadata: {
+            username: username.toLowerCase()
+          }
+        });
+        router.replace('/(tabs)/home');
+      } else {
+        setError('Error: ' + response.data.message || 'Failed to sign up');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign up');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <LinearGradient
+        colors={['black', '#53538F']}
+        style={styles.gradient}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.title}>Create Account</Text>
+          
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="email" size={24} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#666"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="lock" size={24} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#666"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="person" size={24} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              placeholderTextColor="#666"
+              value={username}
+              onChangeText={handleUsernameChange} 
+              autoCapitalize="none"
+            />
+          </View>
+
+          {error && <Text style={styles.error}>{error}</Text>}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.loginLink}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.loginLinkText}>
+              Already have an account? <Text style={styles.loginLinkTextBold}>Log in</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: 50,
+    color: '#333',
+  },
+  button: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: '#6a5af9',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  error: {
+    color: '#ff6b6b',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  loginLink: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  loginLinkText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  loginLinkTextBold: {
+    fontWeight: 'bold',
+  },
+}); 
